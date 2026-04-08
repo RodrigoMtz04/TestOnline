@@ -234,8 +234,8 @@
                     }
                 },
                 scene: {
-                    create: create,
-                    update: update
+                    create: function() { create.call(this); },
+                    update: function() { update.call(this); }
                 },
                 parent: 'gameContainer',
                 backgroundColor: '#1a1a1a'
@@ -314,8 +314,8 @@
                 angle: angle
             });
 
-            // Actualizar jugadores remotos
-            updateBullets(this);
+             // Actualizar jugadores remotos
+             updateBullets();
         }
 
         function updatePlayersList(players) {
@@ -347,34 +347,54 @@
         }
 
         function createBullet(bulletData) {
+            if (!game || !game.scene.isActive()) return;
+
             const bullet = game.add.rectangle(bulletData.x, bulletData.y, 5, 5, 0xffff00);
             game.physics.add.existing(bullet);
+            bullet.body.setCollideWorldBounds(false);
+
             const vx = Math.cos(bulletData.angle) * bulletData.speed;
             const vy = Math.sin(bulletData.angle) * bulletData.speed;
             bullet.body.setVelocity(vx, vy);
+            bullet.body.setAllowGravity(false);
             bullet.data = bulletData;
             bullets.push(bullet);
+
+            console.log('Bala creada:', { x: bulletData.x, y: bulletData.y, vx, vy });
         }
 
-        function updateBullets(scene) {
-            bullets = bullets.filter(bullet => {
-                if (bullet.x < 0 || bullet.x > window.innerWidth || bullet.y < 0 || bullet.y > window.innerHeight) {
-                    bullet.destroy();
-                    return false;
+        function updateBullets() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+
+                if (!bullet.active) {
+                    bullets.splice(i, 1);
+                    continue;
                 }
 
-                // Colisión con jugador local
-                if (bullet.data.playerId !== currentPlayerId) {
-                    const distance = Phaser.Math.Distance.Between(bullet.x, bullet.y, playerSprite.x, playerSprite.y);
+                // Eliminar balas fuera del mapa
+                if (bullet.x < 0 || bullet.x > window.innerWidth ||
+                    bullet.y < 0 || bullet.y > window.innerHeight) {
+                    bullet.destroy();
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Colisión con jugador local (solo si no es la bala del jugador local)
+                if (playerSprite && bullet.data && bullet.data.playerId !== currentPlayerId) {
+                    const distance = Phaser.Math.Distance.Between(
+                        bullet.x, bullet.y,
+                        playerSprite.x, playerSprite.y
+                    );
+
                     if (distance < 30) {
                         socket.emit('bulletHit', { targetPlayerId: currentPlayerId, damage: 10 });
                         bullet.destroy();
-                        return false;
+                        bullets.splice(i, 1);
+                        console.log('¡Impacto detectado!');
                     }
                 }
-
-                return true;
-            });
+            }
         }
 
         // Manejar redimensionamiento de ventana
