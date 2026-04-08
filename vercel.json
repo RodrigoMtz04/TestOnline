@@ -1,0 +1,24 @@
+{
+  "buildCommand": "npm install",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "framework": "nodejs",
+  "nodeVersion": "18.x",
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "public": "public",
+  "functions": {
+    "server.js": {
+      "memory": 1024,
+      "maxDuration": 900
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ]
+}
+

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shooter Top-Down Multijugador</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+
+        #gameContainer {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+        }
+
+        #lobbyScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-width: 300px;
+            border: 2px solid #00ff00;
+        }
+
+        #lobbyScreen h1 {
+            color: #00ff00;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        #lobbyScreen input {
+            padding: 10px;
+            font-size: 16px;
+            background: #222;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            border-radius: 5px;
+        }
+
+        #lobbyScreen button {
+            padding: 12px 20px;
+            font-size: 16px;
+            background: #00ff00;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        #lobbyScreen button:hover {
+            background: #00dd00;
+            transform: scale(1.05);
+        }
+
+        #gameInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 50;
+        }
+
+        .player-list {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 50;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .player-item {
+            padding: 5px;
+            margin: 3px 0;
+            background: rgba(0, 255, 0, 0.2);
+            border-left: 3px solid #00ff00;
+            padding-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="lobbyScreen">
+            <h1>Shooter Top-Down</h1>
+            <p>Únete a una sala de juego</p>
+            <input type="text" id="playerName" placeholder="Tu nombre" value="Player">
+            <input type="text" id="roomId" placeholder="ID de sala (ej: room1)">
+            <button onclick="joinGame()">Unirse a Sala</button>
+            <button onclick="createRoom()">Crear Nueva Sala</button>
+            <p style="font-size: 10px; margin-top: 10px;">Usa WASD para movimiento, MOUSE para apuntar, CLICK para disparar</p>
+        </div>
+        <div id="gameInfo" style="display: none;">
+            <div>Sala: <span id="currentRoom">-</span></div>
+            <div>Jugador: <span id="currentPlayer">-</span></div>
+            <div>Salud: <span id="playerHealth">100</span>/100</div>
+        </div>
+        <div class="player-list" id="playerList" style="display: none;">
+            <strong>Jugadores:</strong>
+            <div id="playerListContent"></div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let game;
+        let currentRoomId;
+        let currentPlayerId;
+        let currentPlayerName;
+        let gameStarted = false;
+
+        // Función para crear una sala con ID aleatoria
+        function createRoom() {
+            const roomId = 'room_' + Math.random().toString(36).substr(2, 9);
+            document.getElementById('roomId').value = roomId;
+        }
+
+        // Función para unirse a una sala
+        function joinGame() {
+            const playerName = document.getElementById('playerName').value.trim();
+            const roomId = document.getElementById('roomId').value.trim();
+
+            if (!playerName) {
+                alert('Por favor ingresa tu nombre');
+                return;
+            }
+
+            if (!roomId) {
+                alert('Por favor ingresa o crea una sala');
+                return;
+            }
+
+            currentRoomId = roomId;
+            currentPlayerName = playerName;
+
+            // Ocultar lobby
+            document.getElementById('lobbyScreen').style.display = 'none';
+            document.getElementById('gameInfo').style.display = 'block';
+            document.getElementById('playerList').style.display = 'block';
+            document.getElementById('currentRoom').textContent = roomId;
+            document.getElementById('currentPlayer').textContent = playerName;
+
+            // Conectar con socket
+            if (!socket) {
+                socket = io();
+                setupSocketListeners();
+            }
+
+            // Unirse a la sala
+            socket.emit('joinRoom', { roomId, playerName });
+
+            // Iniciar juego
+            if (!gameStarted) {
+                startGame();
+                gameStarted = true;
+            }
+        }
+
+        function setupSocketListeners() {
+            socket.on('playerJoined', (data) => {
+                currentPlayerId = socket.id;
+                updatePlayersList(data.allPlayers);
+            });
+
+            socket.on('playerMoved', (data) => {
+                if (data.playerId !== currentPlayerId && game) {
+                    updateRemotePlayer(data);
+                }
+            });
+
+            socket.on('bulletFired', (bullet) => {
+                if (game) {
+                    createBullet(bullet);
+                }
+            });
+
+            socket.on('playerHit', (data) => {
+                if (data.playerId === currentPlayerId) {
+                    document.getElementById('playerHealth').textContent = data.health;
+                    if (!data.isAlive) {
+                        alert('¡Fuiste eliminado!');
+                    }
+                }
+            });
+
+            socket.on('playerLeft', (data) => {
+                if (game) {
+                    removeRemotePlayer(data.playerId);
+                }
+            });
+        }
+
+        function startGame() {
+            const config = {
+                type: Phaser.AUTO,
+                width: window.innerWidth,
+                height: window.innerHeight,
+                physics: {
+                    default: 'arcade',
+                    arcade: {
+                        gravity: { y: 0 },
+                        debug: false
+                    }
+                },
+                scene: {
+                    create: create,
+                    update: update
+                },
+                parent: 'gameContainer',
+                backgroundColor: '#1a1a1a'
+            };
+
+            game = new Phaser.Game(config);
+        }
+
+        // Variables del juego
+        let playerSprite;
+        let cursors;
+        let mouseX = 0;
+        let mouseY = 0;
+        let remotePlayers = {};
+        let bullets = [];
+        let isMoving = false;
+
+        function create() {
+            // Crear al jugador
+            const spawnX = window.innerWidth / 2;
+            const spawnY = window.innerHeight / 2;
+
+            playerSprite = this.add.rectangle(spawnX, spawnY, 20, 30, 0x00ff00);
+            this.physics.add.existing(playerSprite);
+            playerSprite.body.setCollideWorldBounds(true);
+            playerSprite.body.setBounce(0.2, 0.2);
+
+            // Input
+            cursors = this.input.keyboard.createCursorKeys();
+            this.input.keyboard.addKeys('W,A,S,D');
+
+            // Mouse
+            this.input.on('pointermove', (pointer) => {
+                mouseX = pointer.x;
+                mouseY = pointer.y;
+            });
+
+            this.input.on('pointerdown', () => {
+                if (currentPlayerId && socket) {
+                    const dx = mouseX - playerSprite.x;
+                    const dy = mouseY - playerSprite.y;
+                    const angle = Math.atan2(dy, dx);
+                    socket.emit('playerShoot', { angle });
+                }
+            });
+
+            // Crear texto para depuración
+            this.debugText = this.add.text(10, 10, '', { fontSize: '12px', fill: '#00ff00' });
+        }
+
+        function update() {
+            if (!playerSprite || !socket) return;
+
+            // Movimiento
+            let vx = 0;
+            let vy = 0;
+            const speed = 200;
+
+            if (this.input.keyboard.keys[87].isDown || cursors.up.isDown) vy -= speed; // W
+            if (this.input.keyboard.keys[83].isDown || cursors.down.isDown) vy += speed; // S
+            if (this.input.keyboard.keys[65].isDown || cursors.left.isDown) vx -= speed; // A
+            if (this.input.keyboard.keys[68].isDown || cursors.right.isDown) vx += speed; // D
+
+            playerSprite.body.setVelocity(vx, vy);
+
+            // Rotación hacia el mouse
+            const dx = mouseX - playerSprite.x;
+            const dy = mouseY - playerSprite.y;
+            const angle = Math.atan2(dy, dx);
+            playerSprite.rotation = angle;
+
+            // Enviar posición al servidor
+            socket.emit('playerMove', {
+                x: playerSprite.x,
+                y: playerSprite.y,
+                angle: angle
+            });
+
+            // Actualizar jugadores remotos
+            updateBullets(this);
+        }
+
+        function updatePlayersList(players) {
+            const list = document.getElementById('playerListContent');
+            list.innerHTML = '';
+            players.forEach(player => {
+                const item = document.createElement('div');
+                item.className = 'player-item';
+                item.textContent = `${player.name} - ${player.health}HP`;
+                list.appendChild(item);
+            });
+        }
+
+        function updateRemotePlayer(data) {
+            if (!remotePlayers[data.playerId]) {
+                remotePlayers[data.playerId] = game.add.rectangle(data.x, data.y, 20, 30, 0xff0000);
+            }
+            const remote = remotePlayers[data.playerId];
+            remote.x = data.x;
+            remote.y = data.y;
+            remote.rotation = data.angle;
+        }
+
+        function removeRemotePlayer(playerId) {
+            if (remotePlayers[playerId]) {
+                remotePlayers[playerId].destroy();
+                delete remotePlayers[playerId];
+            }
+        }
+
+        function createBullet(bulletData) {
+            const bullet = game.add.rectangle(bulletData.x, bulletData.y, 5, 5, 0xffff00);
+            game.physics.add.existing(bullet);
+            const vx = Math.cos(bulletData.angle) * bulletData.speed;
+            const vy = Math.sin(bulletData.angle) * bulletData.speed;
+            bullet.body.setVelocity(vx, vy);
+            bullet.data = bulletData;
+            bullets.push(bullet);
+        }
+
+        function updateBullets(scene) {
+            bullets = bullets.filter(bullet => {
+                if (bullet.x < 0 || bullet.x > window.innerWidth || bullet.y < 0 || bullet.y > window.innerHeight) {
+                    bullet.destroy();
+                    return false;
+                }
+
+                // Colisión con jugador local
+                if (bullet.data.playerId !== currentPlayerId) {
+                    const distance = Phaser.Math.Distance.Between(bullet.x, bullet.y, playerSprite.x, playerSprite.y);
+                    if (distance < 30) {
+                        socket.emit('bulletHit', { targetPlayerId: currentPlayerId, damage: 10 });
+                        bullet.destroy();
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+        }
+
+        // Manejar redimensionamiento de ventana
+        window.addEventListener('resize', () => {
+            if (game) {
+                game.scale.resize(window.innerWidth, window.innerHeight);
+            }
+        });
+    </script>
+</body>
+</html>
+

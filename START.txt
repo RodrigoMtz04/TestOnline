@@ -1,0 +1,104 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                ║
+║  🎮 SHOOTER MULTIPLAYER - GUÍA DE INICIO RÁPIDO                              ║
+║                                                                                ║
+║  ¿Primero? Abre: QUICKSTART.md                                              ║
+║                                                                                ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+
+EN 3 PASOS TENDRÁS EL JUEGO CORRIENDO:
+
+1. INSTALAR DEPENDENCIAS
+   ═══════════════════════════════════════════════════════════════════════════
+
+   $ npm install
+
+   ⏱️  Tiempo: ~1 minuto
+
+
+2. INICIAR SERVIDOR
+   ═══════════════════════════════════════════════════════════════════════════
+
+   $ npm run dev
+
+   Verás:
+   "Servidor escuchando en puerto 3000"
+
+   ⏱️  Tiempo: Inmediato
+
+
+3. ABRIR EN NAVEGADOR
+   ═══════════════════════════════════════════════════════════════════════════
+
+   http://localhost:3000
+
+   ⏱️  Tiempo: Inmediato
+
+
+PARA JUGAR CON OTRO JUGADOR:
+
+1. Abre http://localhost:3000 en una pestaña
+2. Abre http://localhost:3000 en otra pestaña
+3. En ambas:
+   - Escribe tu nombre (ej: "Jugador 1", "Jugador 2")
+   - Escribe la misma sala ID (ej: "room_test")
+   - Haz clic "Unirse a Sala"
+4. ¡Ahora pueden jugar juntos!
+
+
+CONTROLES:
+══════════════════════════════════════════════════════════════════════════════
+
+WASD o Flechas  →  Movimiento
+Mouse           →  Apuntar
+Click izquierdo →  Disparar
+
+
+¿ALGO NO FUNCIONA?
+
+Puerto 3000 en uso:
+   $ lsof -i :3000
+   $ kill -9 <PID>
+
+No ves otros jugadores:
+   • Verifica que ambos usen la MISMA sala ID
+   • Recarga la página (F5)
+
+Error en consola:
+   • Presiona F12 para abrir consola
+   • Busca el error en FAQ.md
+
+
+DOCUMENTACIÓN:
+
+QUICKSTART.md    ← Guía detallada de inicio (2 min)
+CONTROLES.md     ← Cómo jugar
+DEPLOYMENT.md    ← Cómo desplegar en Vercel
+ARQUITECTURA.md  ← Entender el código
+EJEMPLOS.md      ← Agregar características
+FAQ.md           ← Preguntas frecuentes
+ROADMAP.md       ← Características futuras
+INDEX.md         ← Índice completo
+
+
+DESPLEGAR EN VERCEL (Opcional):
+
+1. $ npm install -g vercel
+2. $ vercel --prod
+3. Tu juego estará en: https://tu-proyecto.vercel.app
+
+
+¿NECESITAS AYUDA?
+
+Lee:
+  • QUICKSTART.md (inicio rápido)
+  • FAQ.md (preguntas frecuentes)
+  • INSTALLATION.md (verificación)
+
+
+¡Eso es todo! Ahora abre:
+http://localhost:3000
+
+¡Que disfrutes! 🎮✨
+
